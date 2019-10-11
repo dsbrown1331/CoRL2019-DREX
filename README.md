@@ -8,7 +8,7 @@ Daniel Brown, Wonjoon Goo, and Scott Niekum.
 </p>
 
 
-This repository contains a code used to conduct experiments reported in the paper.
+This repository contains a code used to conduct experiments reported in the paper [Better-than-Demonstrator Imitation Learning via Automatically-Ranked Demonstrations](https://arxiv.org/pdf/1907.03976.pdf), presented at the Conference on Robot Learning (CoRL), 2019.
 
 If you find this repository is useful in your research, please cite the paper:
 ```
