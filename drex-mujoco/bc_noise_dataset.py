@@ -1,12 +1,26 @@
+import argparse
 import os
 import numpy as np
 import pickle
 from tqdm import tqdm
 import gym
 
-from utils import GTDataset
+import matplotlib
+matplotlib.use('agg')
+import matplotlib.pylab as pylab
+params = {'legend.fontsize': 'xx-large',
+        'figure.figsize': (5, 4),
+        'axes.labelsize': 'xx-large',
+        'axes.titlesize':'xx-large',
+        'xtick.labelsize':'xx-large',
+        'ytick.labelsize':'xx-large'}
+pylab.rcParams.update(params)
+from matplotlib import pyplot as plt
 
-# ActionNoise code is borrowed from OpenAI/baselines
+from bc_mujoco import Policy
+from utils import RandomAgent, gen_traj
+################################
+
 class ActionNoise(object):
     def reset(self):
         pass
@@ -43,9 +57,10 @@ class OrnsteinUhlenbeckActionNoise(ActionNoise):
     def __repr__(self):
         return 'OrnsteinUhlenbeckActionNoise(mu={}, sigma={})'.format(self.mu, self.sigma)
 
+################################
 
 class NoiseInjectedPolicy(object):
-    def __init__(self,env,policy,action_noise_type,noise_level): #,param_noise=None,): TODO:
+    def __init__(self,env,policy,action_noise_type,noise_level):
         self.action_space = env.action_space
         self.policy = policy
         self.action_noise_type = action_noise_type
@@ -76,19 +91,13 @@ class NoiseInjectedPolicy(object):
     def reset(self):
         self.action_noise.reset()
 
-class BCNoisePreferenceDataset(GTDataset):
-    def __init__(self,env,env_type,max_steps,min_margin):
-        super().__init__(env,env_type)
+################################
+class BCNoisePreferenceDataset(object):
+    def __init__(self,env,max_steps=None,min_margin=None):
+        self.env = env
+
         self.max_steps = max_steps
         self.min_margin = min_margin
-
-    def load_prebuilt(self,logdir):
-        if os.path.exists(os.path.join(logdir,'prebuilt.pkl')):
-            with open(os.path.join(logdir,'prebuilt.pkl'),'rb') as f:
-                self.trajs = pickle.load(f)
-            return True
-        else:
-            return False
 
     def prebuild(self,agent,noise_range,num_trajs,min_length,logdir):
         trajs = []
@@ -100,68 +109,34 @@ class BCNoisePreferenceDataset(GTDataset):
             assert (num_trajs > 0 and min_length <= 0) or (min_length > 0 and num_trajs <= 0)
             while (min_length > 0 and np.sum([len(obs) for obs,_,_,_ in agent_trajs])  < min_length) or\
                     (num_trajs > 0 and len(agent_trajs) < num_trajs):
-                (obs,actions,rewards),last_x_pos = self.gen_traj(noisy_policy,-1)
-                agent_trajs.append((obs,actions,rewards,last_x_pos))
+                obs,actions,rewards = gen_traj(self.env,noisy_policy,-1)
+                agent_trajs.append((obs,actions,rewards))
 
             trajs.append((noise_level,agent_trajs))
-
-            # __ Debug Purpose __
-            agent_reward = np.mean([np.sum(rewards) for _,_,rewards,_ in agent_trajs])
-            agent_reward_std = np.std([np.sum(rewards) for _,_,rewards,_ in agent_trajs])
-            avg_len = np.mean([len(rewards) for _,_,rewards,_ in agent_trajs])
-            avg_last_x_pos = np.mean([last_x_pos for _,_,_,last_x_pos in agent_trajs])
-            tqdm.write('noise_level: %f eps len: %f avg reward: %f (%f) mean last_x_pos: %f'%(noise_level,avg_len,agent_reward,agent_reward_std,avg_last_x_pos))
 
         self.trajs = trajs
 
         with open(os.path.join(logdir,'prebuilt.pkl'),'wb') as f:
             pickle.dump(self.trajs,f)
 
-        # For debug; legacy
-        import matplotlib
-        matplotlib.use('agg')
-        from matplotlib import pyplot as plt
-
-        if self.env_type == 'mujoco':
-            perfs = [
-                (noise_level, last_x_pos) for noise_level,agent_trajs in self.trajs for _,_,_,last_x_pos in agent_trajs
-            ]
-        else :
-            perfs = [
-                (noise_level, np.sum(rewards)) for noise_level,agent_trajs in self.trajs for _,_,rewards,_ in agent_trajs
-            ]
-
-        fig,ax = plt.subplots()
-        x,y = zip(*perfs)
-
-        ax.plot(x,y,'x',color='red',alpha=0.4)
-
-        fig.savefig(os.path.join(logdir,'dataset_statistic.pdf'))
-        plt.close(fig)
+    def load_prebuilt(self,fname):
+        if os.path.exists(fname):
+            with open(fname,'rb') as f:
+                self.trajs = pickle.load(f)
+            return True
+        else:
+            return False
 
     def draw_fig(self,log_dir,demo_trajs):
         demo_returns = [np.sum(rewards) for _,_,rewards in demo_trajs]
         demo_ave, demo_std = np.mean(demo_returns), np.std(demo_returns)
 
         noise_levels = [noise for noise,_ in self.trajs]
-        returns = np.array([[np.sum(rewards) for _,_,rewards,_ in agent_trajs] for _,agent_trajs in self.trajs])
+        returns = np.array([[np.sum(rewards) for _,_,rewards in agent_trajs] for _,agent_trajs in self.trajs])
 
-        from utils import RandomAgent
         random_agent = RandomAgent(self.env.action_space)
-        random_returns = [np.sum(self.gen_traj(random_agent,-1)[0][2]) for _ in range(20)]
+        random_returns = [np.sum(gen_traj(self.env,random_agent,-1)[2]) for _ in range(20)]
         random_ave, random_std = np.mean(random_returns), np.std(random_returns)
-
-        import matplotlib
-        matplotlib.use('agg')
-        import matplotlib.pylab as pylab
-        params = {'legend.fontsize': 'xx-large',
-                'figure.figsize': (5, 4),
-                'axes.labelsize': 'xx-large',
-                'axes.titlesize':'xx-large',
-                'xtick.labelsize':'xx-large',
-                'ytick.labelsize':'xx-large'}
-        pylab.rcParams.update(params)
-        from matplotlib import pyplot as plt
 
         from_to = [np.min(noise_levels), np.max(noise_levels)]
 
@@ -189,7 +164,6 @@ class BCNoisePreferenceDataset(GTDataset):
 
     def sample(self,num_samples,include_action=False):
         D = []
-        GT_preference = [] # For debugging
 
         for _ in tqdm(range(num_samples)):
             # Pick Two Noise Level Set
@@ -226,17 +200,31 @@ class BCNoisePreferenceDataset(GTDataset):
                           0 if self.trajs[x_idx][0] < self.trajs[y_idx][0] else 1)
                         )
 
-            # For Debug Purpose
-            GT_preference.append(0 if np.sum(x_traj[2][x_slice]) > np.sum(y_traj[2][y_slice]) else 1)
-
-        print('------------------')
-        _,_,preference = zip(*D)
-        preference = np.array(preference).astype(np.bool)
-        GT_preference = np.array(GT_preference).astype(np.bool)
-        print('Quality of time-indexed preference (0-1):', np.count_nonzero(preference == GT_preference) / len(preference))
-        print('------------------')
-
         return D
 
 if __name__ == "__main__":
-    pass
+    # Required Args (target envs & learners)
+    parser = argparse.ArgumentParser(description=None)
+    parser.add_argument('--log_dir', required=True, help='log dir')
+    parser.add_argument('--env_id', required=True, help='Select the environment to run')
+    parser.add_argument('--bc_agent',required=True)
+    parser.add_argument('--demo_trajs',required=True, help='suboptimal demo trajectories used for bc (used to generate a figure)')
+    # Noise Injection Hyperparams
+    parser.add_argument('--noise_range', default='np.arange(0.,1.0,0.05)', help='decide upto what learner stage you want to give')
+    parser.add_argument('--num_trajs', default=5,type=int, help='number of trajectory generated by each agent')
+    parser.add_argument('--min_length', default=0,type=int, help='minimum length of trajectory generated by each agent')
+
+    args = parser.parse_args()
+
+    # Generate a Noise Injected Trajectories
+    env = gym.make(args.env_id)
+    dataset = BCNoisePreferenceDataset(env)
+    agent = Policy(env)
+    agent.load(args.bc_agent)
+
+    dataset.prebuild(agent,eval(args.noise_range),args.num_trajs,args.min_length,args.log_dir)
+
+    with open(args.demo_trajs,'rb') as f:
+        demo_trajs = pickle.load(f)
+
+    dataset.draw_fig(args.log_dir,demo_trajs)
