@@ -1,13 +1,17 @@
-import os
 import sys
+import os
 import numpy as np
 import tensorflow as tf
 from tqdm import tqdm
+
 import gym
+
+from tf_commons.ops import Linear
 
 # Import my own libraries
 sys.path.append(os.path.dirname(os.path.abspath(__file__))+'/learner/baselines/')
-from tf_commons.ops import *
+
+####################
 
 class RandomAgent(object):
     """The world's simplest agent!"""
@@ -81,48 +85,29 @@ class PPO2Agent(object):
                     a = self.model.act_model.act(obs[None])
         return a[0]
 
-def get_perf(env,agent,render=False,max_len=99999):
-    ob = env.reset()
+def gen_traj(env,agent,min_length):
+    obs, actions, rewards = [env.reset()], [], []
+    while True:
+        action = agent.act(obs[-1], None, None)
+        ob, reward, done, _ = env.step(action)
 
-    from mujoco_py.generated import const
-    unwrapped = env
-    while hasattr(unwrapped,'env'):
-        unwrapped = unwrapped.env
-    viewer = unwrapped._get_viewer('rgb_array')
-    viewer.cam.fixedcamid = 0
-    viewer.cam.type = const.CAMERA_FIXED
+        obs.append(ob)
+        actions.append(action)
+        rewards.append(reward)
 
-    for _ in range(max_len):
-        a = agent.act(ob,None,None)
-        ob, r, done, _ = env.step(a)
-
-        if render:
-            env.render()
         if done:
-            break
+            if len(obs) < min_length:
+                obs.pop()
+                obs.append(env.reset())
+            else:
+                obs.pop()
+                break
 
-    return unwrapped.sim.data.qpos[0] #Final location of the object
+    return np.stack(obs,axis=0), np.array(actions), np.array(rewards)
 
-class Net(object):
-    def input_preprocess(self,obs,acs):
-        """
-            np array -> np array (Not TF Ops)
-        """
-        # Be careful when implementing this.
-        # This function have to process raw input of obs and acs in the same manner as Dataset class does.
-        # TODO: Or, change dataset class to provide a raw (obs,acs) they got.
-        raise NotImplementedError
+####################
 
-    def build_input_placeholder(self,name):
-        raise NotImplementedError
-
-    def build_reward(self,x):
-        raise NotImplementedError
-
-    def build_weight_decay(self):
-        raise NotImplementedError
-
-class MujocoNet(Net):
+class RewardNet():
     def __init__(self,include_action,ob_dim,ac_dim,num_layers=2,embedding_dims=256):
         in_dims = ob_dim+ac_dim if include_action else ob_dim
 
@@ -162,7 +147,7 @@ class MujocoNet(Net):
         return weight_decay
 
 class Model(object):
-    def __init__(self,net:Net,batch_size=64):
+    def __init__(self,net:RewardNet,batch_size=64):
         self.B = batch_size
         self.net = net
 
@@ -269,19 +254,6 @@ class Model(object):
 
         batch_op = ds.make_one_shot_iterator().get_next()
 
-        """
-        def gen(idx_list,add_noise):
-            while True:
-                yield _batch(idx_list,add_noise)
-        ds = tf.data.Dataset.from_generator(
-            partial(gen,train_idxes,True),
-            (tf.float32, tf.float32, tf.int32, tf.int32, tf.int32),
-            (tf.TensorShape([None,84,84,4]), tf.TensorShape([None,84,84,4]),
-            tf.TensorShape([self.B]),tf.TensorShape([self.B]),tf.TensorShape([self.B])))
-        ds = ds.prefetch(buffer_size=10)
-        batch_op = ds.make_one_shot_iterator().get_next()
-        """
-
         for it in tqdm(range(iter),dynamic_ncols=True):
             b_x,b_y,x_split,y_split,b_l = _batch(train_idxes,add_noise=True)
             #b_x,b_y,x_split,y_split,b_l = sess.run(batch_op)
@@ -312,24 +284,6 @@ class Model(object):
                 print('early termination@%08d'%it)
                 break
 
-    def train_with_dataset(self,dataset,iter=10000,l2_reg=0.01,debug=False):
-        sess = tf.get_default_session()
-
-        for it in tqdm(range(iter),dynamic_ncols=True):
-            b_x,b_y,x_split,y_split,b_l = dataset.batch(batch_size=self.B,include_action=self.net.include_action)
-            loss,l2_loss,acc,_ = sess.run([self.loss,self.l2_loss,self.acc,self.update_op],feed_dict={
-                self.x:b_x,
-                self.y:b_y,
-                self.x_split:x_split,
-                self.y_split:y_split,
-                self.l:b_l,
-                self.l2_reg:l2_reg,
-            })
-
-            if debug:
-                if it % 100 == 0 or it < 10:
-                    tqdm.write(('loss: %f (l2_loss: %f), acc: %f'%(loss,l2_loss,acc)))
-
     def get_reward(self,obs,acs,batch_size=1024):
         sess = tf.get_default_session()
 
@@ -345,73 +299,3 @@ class Model(object):
 
         return np.concatenate(b_r,axis=0)
 
-class GTDataset(object):
-    def __init__(self,env,env_type):
-        self.env = env
-        self.env_type = env_type
-
-        self.unwrapped = env
-        while hasattr(self.unwrapped,'env'):
-            self.unwrapped = self.unwrapped.env
-
-    def gen_traj(self,agent,min_length):
-        max_x_pos = -99999
-
-        obs, actions, rewards = [self.env.reset()], [], []
-        while True:
-            action = agent.act(obs[-1], None, None)
-            ob, reward, done, _ = self.env.step(action)
-
-            if self.env_type == 'mujoco' and self.unwrapped.sim.data.qpos[0] > max_x_pos:
-                max_x_pos = self.unwrapped.sim.data.qpos[0]
-
-            obs.append(ob)
-            actions.append(action)
-            rewards.append(reward)
-
-            if done:
-                if len(obs) < min_length:
-                    obs.pop()
-                    obs.append(self.env.reset())
-                else:
-                    obs.pop()
-                    break
-
-        return (np.stack(obs,axis=0), np.array(actions), np.array(rewards)), max_x_pos
-
-    def load_prebuilt(self,logdir):
-        return False
-
-    def prebuilt(self,agents,min_length):
-        assert len(agents)>0, 'no agent given'
-        trajs = []
-        for agent in tqdm(agents):
-            traj, max_x_pos = self.gen_traj(agent,min_length)
-
-            trajs.append(traj)
-            tqdm.write('model: %s avg reward: %f max_x_pos: %f'%(agent.model_path,np.sum(traj[2]),max_x_pos))
-        obs,actions,rewards = zip(*trajs)
-        self.trajs = (np.concatenate(obs,axis=0),np.concatenate(actions,axis=0),np.concatenate(rewards,axis=0))
-
-        print(self.trajs[0].shape,self.trajs[1].shape,self.trajs[2].shape)
-
-    def sample(self,num_samples,steps=40,include_action=False):
-        obs, actions, rewards = self.trajs
-
-        D = []
-        for _ in range(num_samples):
-            x_ptr = np.random.randint(len(obs)-steps)
-            y_ptr = np.random.randint(len(obs)-steps)
-
-            if include_action:
-                D.append((np.concatenate((obs[x_ptr:x_ptr+steps],actions[x_ptr:x_ptr+steps]),axis=1),
-                         np.concatenate((obs[y_ptr:y_ptr+steps],actions[y_ptr:y_ptr+steps]),axis=1),
-                         0 if np.sum(rewards[x_ptr:x_ptr+steps]) > np.sum(rewards[y_ptr:y_ptr+steps]) else 1)
-                        )
-            else:
-                D.append((obs[x_ptr:x_ptr+steps],
-                          obs[y_ptr:y_ptr+steps],
-                          0 if np.sum(rewards[x_ptr:x_ptr+steps]) > np.sum(rewards[y_ptr:y_ptr+steps]) else 1)
-                        )
-
-        return D

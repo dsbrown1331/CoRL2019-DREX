@@ -88,7 +88,7 @@ class VecTFPreferenceReward(VecEnvWrapper):
 
                 dir_path = os.path.dirname(os.path.realpath(__file__))
                 sys.path.append(os.path.join(dir_path,'..','..','..','..'))
-                from utils import Model, MujocoNet
+                from utils import Model, RewardNet
 
                 print(os.path.realpath(model_dir))
                 with open(str(Path(model_dir)/'args.txt')) as f:
@@ -97,10 +97,7 @@ class VecTFPreferenceReward(VecEnvWrapper):
                 models = []
                 for i in range(args.num_models):
                     with tf.variable_scope('model_%d'%i):
-                        if args.env_type in ['mujoco']:
-                            net = MujocoNet(args.include_action,ob_shape[-1],ac_dims,num_layers=args.num_layers,embedding_dims=args.embedding_dims)
-                        else:
-                            assert False
+                        net = RewardNet(args.include_action,ob_shape[-1],ac_dims,num_layers=args.num_layers,embedding_dims=args.embedding_dims)
 
                         model = Model(net,batch_size=1)
                         model.saver.restore(self.sess,os.path.join(model_dir,'model_%d.ckpt'%i))
