@@ -131,7 +131,7 @@ python-dateutil==2.7.5
 python-gflags==3.1.2
 pytz==2019.1
 PyWavelets==1.0.1
-PyYAML==3.13
+PyYAML==5.1
 pyzmq==18.0.1
 qtconsole==4.4.3
 ray==0.6.4
