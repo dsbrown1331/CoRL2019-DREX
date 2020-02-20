@@ -14,7 +14,7 @@ from baselines.common.cmd_util import make_vec_env
 from baselines.common.vec_env.vec_frame_stack import VecFrameStack
 from baselines.common.vec_env.vec_normalize import VecNormalize
 from baselines.common.vec_env.vec_video_recorder import VecVideoRecorder
-from baselines.common.trex_utils import preprocess
+from baselines.common.trex_utils import preprocess, mask_score
 from bc import Clone
 from synthesize_rankings_bc import DemoGenerator
 from train import train
@@ -47,7 +47,7 @@ def generate_demos(env, env_name, agent, checkpoint_path, num_demos):
         acc_reward = 0
         while True:
             action = agent.act(ob, r, done)
-            ob_processed = preprocess(ob, env_name)
+            ob_processed = mask_score(ob, env_name)
             #ob_processed = ob_processed[0] #get rid of spurious first dimension ob.shape = (1,84,84,4)
             traj.append((ob_processed,action))
             ob, r, done, _ = env.step(action)
@@ -355,7 +355,7 @@ if __name__=="__main__":
     action_set = set()
     action_cnt_dict = {}
     data = []
-    for episode in demonstrations:
+    for i,episode in enumerate(demonstrations):
         for sa in episode:
             state, action = sa
             action = action[0]
@@ -365,8 +365,10 @@ if __name__=="__main__":
             else:
                 action_cnt_dict[action] = 0
             #transpose into 4x84x84 format
-            state = np.transpose(np.squeeze(state), (2, 0, 1))*255.
+            state = np.transpose(np.squeeze(state), (2, 0, 1))
             data.append((state, action))
+        del demonstrations[i]
+    del demonstrations
 
     #take 10% as validation data
     np.random.shuffle(data)
