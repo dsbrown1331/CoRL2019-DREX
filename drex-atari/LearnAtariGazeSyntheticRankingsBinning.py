@@ -30,7 +30,7 @@ import dataset
 from gaze_cnn import Net
 import atari_head_dataset as ahd 
 import gaze_utils
-#from tensorboardX import SummaryWriter
+from tensorboardX import SummaryWriter
 
 
 def generate_demos(env, env_name, agent, checkpoint_path, num_demos):
@@ -409,8 +409,6 @@ if __name__=="__main__":
     data_dir = args.data_dir
     gaze_dataset = ahd.AtariHeadDataset(env_name, data_dir)
     demonstrations, learning_returns, learning_rewards, learning_gaze = gaze_utils.get_preprocessed_trajectories(env_name, gaze_dataset, data_dir, use_gaze, gaze_conv_layer)
-    demonstrations = [demonstrations[0]]
-    learning_returns = [learning_returns[0]]
     print([len(d) for d in demonstrations])
     print([r for r in learning_returns])
     print("demos downloaded")
