@@ -1,5 +1,9 @@
 import argparse
-#Take a cloned policy and plot the degredation
+# coding: utf-8
+
+# Take length 50 snippets and record the cumulative return for each one. Then determine ground truth labels based on this.
+
+# In[1]:
 
 
 import pickle
@@ -14,7 +18,7 @@ from baselines.common.cmd_util import make_vec_env
 from baselines.common.vec_env.vec_frame_stack import VecFrameStack
 from baselines.common.vec_env.vec_normalize import VecNormalize
 from baselines.common.vec_env.vec_video_recorder import VecVideoRecorder
-from baselines.common.trex_utils import preprocess, mask_score
+from baselines.common.trex_utils import preprocess
 from bc import Clone
 from synthesize_rankings_bc import DemoGenerator
 from train import train
@@ -22,6 +26,11 @@ from pdb import set_trace
 from main_bc_degredation import generate_novice_demos
 from run_test import PPO2Agent
 import dataset
+
+from gaze_cnn import Net
+import atari_head_dataset as ahd 
+import gaze_utils
+#from tensorboardX import SummaryWriter
 
 
 def generate_demos(env, env_name, agent, checkpoint_path, num_demos):
@@ -47,7 +56,7 @@ def generate_demos(env, env_name, agent, checkpoint_path, num_demos):
         acc_reward = 0
         while True:
             action = agent.act(ob, r, done)
-            ob_processed = mask_score(ob, env_name)
+            ob_processed = preprocess(ob, env_name)
             #ob_processed = ob_processed[0] #get rid of spurious first dimension ob.shape = (1,84,84,4)
             traj.append((ob_processed,action))
             ob, r, done, _ = env.step(action)
@@ -72,7 +81,7 @@ def generate_demos(env, env_name, agent, checkpoint_path, num_demos):
 def create_training_data_from_bins(_ranked_demos, num_snippets, min_snippet_length, max_snippet_length):
 
 
-    step = 2
+    step = 4
     #n_train = 3000 #number of pairs of trajectories to create
     #snippet_length = 50
     training_obs = []
@@ -136,8 +145,8 @@ class Net(nn.Module):
     def __init__(self):
         super().__init__()
 
-        self.conv1 = nn.Conv2d(4, 16, 7, stride=3)
-        self.conv2 = nn.Conv2d(16, 16, 5, stride=2)
+        self.conv1 = nn.Conv2d(4, 32, 7, stride=3)
+        self.conv2 = nn.Conv2d(32, 16, 5, stride=2)
         self.conv3 = nn.Conv2d(16, 16, 3, stride=1)
         self.conv4 = nn.Conv2d(16, 16, 3, stride=1)
         self.fc1 = nn.Linear(784, 64)
@@ -161,6 +170,7 @@ class Net(nn.Module):
         #x = x.view(-1, 1936)
         x = F.leaky_relu(self.fc1(x))
         #r = torch.tanh(self.fc2(x)) #clip reward?
+        #r = F.celu(self.fc2(x))
         r = self.fc2(x)
         sum_rewards += torch.sum(r)
         sum_abs_rewards += torch.sum(torch.abs(r))
@@ -191,9 +201,18 @@ def learn_reward(reward_network, optimizer, training_inputs, training_outputs, n
     #print(training_data[0])
     cum_loss = 0.0
     training_data = list(zip(training_inputs, training_outputs))
+    #partition into training and validation sets with 90/10 split
+    np.random.shuffle(training_data)
+    training_data_size = int(len(training_data) * 0.8)
+    training_dataset = training_data[:training_data_size]
+    validation_dataset = training_data[training_data_size:]
+    print("training size = {}, validation size = {}".format(len(training_dataset), len(validation_dataset)))
+
+    best_v_accuracy = -np.float('inf')
+    early_stop = False
     for epoch in range(num_iter):
-        np.random.shuffle(training_data)
-        training_obs, training_labels = zip(*training_data)
+        np.random.shuffle(training_dataset)
+        training_obs, training_labels = zip(*training_dataset)
         for i in range(len(training_labels)):
             traj_i, traj_j = training_obs[i]
             labels = np.array([training_labels[i]])
@@ -229,10 +248,26 @@ def learn_reward(reward_network, optimizer, training_inputs, training_outputs, n
             if i % 1000 == 999:
                 #print(i)
                 print("epoch {}:{} loss {}".format(epoch,i, cum_loss))
+                #evaluate validation_dataset error
+                validation_obs, validation_labels = zip(*validation_dataset)
+                v_accuracy = calc_accuracy(reward_net, validation_obs, validation_labels)
+                print("Validation accuracy = {}".format(v_accuracy))
+                if v_accuracy > best_v_accuracy:
+                    print("check pointing")
+                    torch.save(reward_net.state_dict(), checkpoint_dir)
+                    count = 0
+                    best_v_accuracy = v_accuracy
+                else:
+                    count += 1
+                    if count > 5:
+                        print("Stopping to prevent overfitting after {} ".format(count))
+                        early_stop = True
+                        break
                 print(abs_rewards)
                 cum_loss = 0.0
-                print("check pointing")
-                torch.save(reward_net.state_dict(), checkpoint_dir)
+        if early_stop:
+            print("early stop!!!!!!!")
+            break
     print("finished training")
 
 
@@ -289,13 +324,12 @@ if __name__=="__main__":
     parser = argparse.ArgumentParser(description=None)
     parser.add_argument('--env_name', default='', help='Select the environment name to run, i.e. pong')
     parser.add_argument('--seed', default=0, help="random seed for experiments")
-    parser.add_argument('--models_dir', default = ".", help="top directory where checkpoint models for demos are stored")
-    parser.add_argument("--num_bc_eval_episodes", type=int, default = 0, help="number of epsilon greedy BC demos to generate")
+    parser.add_argument("--num_bc_eval_episodes", type=int, default = 5, help="number of epsilon greedy BC demos to generate")
+    parser.add_argument('--reward_model_path', default='', help="name and location for learned model params, e.g. ./learned_models/breakout.params")
     parser.add_argument("--num_epsilon_greedy_demos", type=int, default=20, help="number of times to generate rollouts from each noise level")
-    parser.add_argument("--checkpoint_path", help="path to checkpoint to run agent for demos")
     parser.add_argument("--num_demos", help="number of demos to generate", default=10, type=int)
-    parser.add_argument("--num_bc_steps", default = 50000, type=int, help='number of steps of BC to run')
-
+    parser.add_argument("--num_bc_steps", default = 75000, type=int, help='number of steps of BC to run')
+   
     parser.add_argument("--minibatch-size", type=int, default=32)
     parser.add_argument("--hist-len", type=int, default=4)
     parser.add_argument("--discount", type=float, default=0.99)
@@ -304,6 +338,13 @@ if __name__=="__main__":
     parser.add_argument("--l2-penalty", type=float, default=0.00)
     parser.add_argument("--checkpoint-dir", type=str, default="./checkpoints")
     parser.add_argument('--epsilon_greedy', default = 0.0, type=float, help="fraction of actions chosen at random for rollouts")
+
+
+    parser.add_argument('--data_dir', help="where atari-head data is located")
+    parser.add_argument('--gaze_loss', default="KL", type=str, help="type of gaze loss function: sinkhorn, exact, coverage, KL, None")
+    parser.add_argument('--gaze_reg', default=0.01, type=float, help="gaze loss multiplier")
+    parser.add_argument('--gaze_conv_layer', default=4, type=int, help='the convlayer of the reward network to which gaze should be compared')
+    parser.add_argument('--use_motion', action="store_true")
 
     args = parser.parse_args()
     env_name = args.env_name
@@ -325,7 +366,22 @@ if __name__=="__main__":
     torch.manual_seed(seed)
     np.random.seed(seed)
 
-    extra_checkpoint_info = "bc_degredation"  #for finding checkpoint again
+
+    print("Training reward for", env_id)
+    #n_train = 200 #number of pairs of trajectories to create
+    #snippet_length = 50 #length of trajectory for training comparison
+    lr = 0.00001
+    weight_decay = 0.0
+    num_iter = 10 #num times through training data
+    l1_reg=0.0
+    stochastic = True
+    bin_width = 0 #only bin things that have the same score
+    num_snippets = 40000
+    min_snippet_length = 50
+    max_snippet_length = 200
+    extra_checkpoint_info = "novice_demos"  #for finding checkpoint again
+    epsilon_greedy_list = [1.0,0.75,0.5,0.25,0.01]#, 0.4, 0.2, 0.1]#[1.0, 0.5, 0.3, 0.1, 0.01]
+
 
 
     hist_length = 4
@@ -337,13 +393,31 @@ if __name__=="__main__":
                            'clip_rewards':False,
                            'episode_life':False,
                        })
+    
+    action_meanings = env.unwrapped.envs[0].unwrapped.get_action_meanings()
 
-    stochastic = True
     env = VecFrameStack(env, 4)
-    demonstrator = PPO2Agent(env, env_type, stochastic)
 
-    ##generate demonstrations for use in BC
-    demonstrations, learning_returns = generate_demos(env, env_name, demonstrator, args.checkpoint_path, args.num_demos)
+    # gaze-related arguments
+    use_gaze = args.gaze_loss
+    gaze_loss_type = args.gaze_loss
+    gaze_reg = args.gaze_reg
+    gaze_conv_layer = args.gaze_conv_layer
+
+
+    print("Downloading gaze data for BC with actions")
+    data_dir = args.data_dir
+    gaze_dataset = ahd.AtariHeadDataset(env_name, data_dir)
+    demonstrations, learning_returns, learning_rewards, learning_gaze = gaze_utils.get_preprocessed_trajectories(env_name, gaze_dataset, data_dir, use_gaze, gaze_conv_layer)
+    demonstrations = [demonstrations[0]]
+    learning_returns = [learning_returns[0]]
+    print([len(d) for d in demonstrations])
+    print([r for r in learning_returns])
+    print("demos downloaded")
+
+
+    
+
 
     #Run BC on demos
     dataset_size = sum([len(d) for d in demonstrations])
@@ -356,23 +430,26 @@ if __name__=="__main__":
     action_cnt_dict = {}
     data = []
     cnt = 0
-    while(demonstrations):
+    while demonstrations:
         print("adding demonstration", cnt)
         cnt += 1
         episode = demonstrations[0]
         for sa in episode:
             state, action = sa
-            action = action[0]
+            #Need to translate from gaze actions to ale gym
+            action = gaze_utils.translate_action(action, action_meanings)
             action_set.add(action)
             if action in action_cnt_dict:
                 action_cnt_dict[action] += 1
             else:
                 action_cnt_dict[action] = 0
+          
             #transpose into 4x84x84 format
             state = np.transpose(np.squeeze(state), (2, 0, 1))
             data.append((state, action))
         del demonstrations[0]
     del demonstrations
+
     #take 10% as validation data
     np.random.shuffle(data)
     training_data_size = int(len(data) * 0.8)
@@ -394,9 +471,11 @@ if __name__=="__main__":
         if num_data == validation_dataset.size:
             print("data set full")
             break
-    del training_data, validation_data, data
+    del training_data
+    del validation_data
     print("available actions", action_set)
     print(action_cnt_dict)
+
 
     agent = train(args.env_name,
         action_set,
@@ -413,27 +492,65 @@ if __name__=="__main__":
         args.num_bc_eval_episodes,
         0.01,
         extra_checkpoint_info)
-    del training_dataset, validation_dataset
+    del training_dataset
+    del validation_dataset
     #minimal_action_set = acion_set
-    epsilon_greedy_list = [0.01]
-    for i in range(20):
-        epsilon_greedy_list.append(0.05 + i*0.05)
-    print("epsilon_greedy_list", epsilon_greedy_list)
 
     #agent = Clone(list(minimal_action_set), hist_length, args.checkpoint_bc_policy)
     print("beginning evaluation")
     generator = DemoGenerator(agent, args.env_name, args.num_epsilon_greedy_demos, args.seed)
-    batch_rewards = generator.get_pseudo_ranking_returns(epsilon_greedy_list)
+    ranked_demos = generator.get_pseudo_rankings(epsilon_greedy_list, add_noop=True)
 
-    #write the batch rewards out to a file
-    writer = open("./bc_degredation_data/" + env_name + "_batch_rewards.csv",'w')
-    #first write the returns of the demonstrations
-    writer.write("demos, ")
-    for i in range(len(learning_returns)-1):
-        writer.write("{}, ".format(learning_returns[i]))
-    writer.write("{}\n".format(learning_returns[-1]))
-    for i,batch in enumerate(batch_rewards):
-        writer.write("{}, ".format(epsilon_greedy_list[i]))
-        for i in range(len(batch)-1):
-            writer.write("{}, ".format(batch[i][0]))
-        writer.write("{}\n".format(batch[-1][0]))
+    # ## Add the demonstrators demos as the highest ranked batch of trajectories, don't need actions
+    # demo_demos = []
+    # for d in demonstrations:
+    #     traj = []
+    #     for s,a in d:
+    #         traj.append(s)
+    #     demo_demos.append(traj)
+    # ranked_demos.append(demo_demos)
+
+    #remove the extra first dimension on the observations
+    _ranked_demos = ranked_demos
+    ranked_demos = []
+    for _r in _ranked_demos:
+        r = []
+        for _d in _r:
+            d = []
+            for _ob in _d:
+                ob = _ob[0]
+                d.append(ob)
+            r.append(d)
+        ranked_demos.append(r)
+
+    print("Learning from ", len(ranked_demos), "synthetically ranked batches of demos")
+
+    training_obs, training_labels = create_training_data_from_bins(ranked_demos, num_snippets, min_snippet_length, max_snippet_length)
+    print("num training_obs", len(training_obs))
+    print("num_labels", len(training_labels))
+    # Now we create a reward network and optimize it using the training data.
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    reward_net = Net()
+    reward_net.to(device)
+    import torch.optim as optim
+    optimizer = optim.Adam(reward_net.parameters(),  lr=lr, weight_decay=weight_decay)
+    learn_reward(reward_net, optimizer, training_obs, training_labels, num_iter, l1_reg, args.reward_model_path)
+
+    with torch.no_grad():
+        for bin_num, demonstrations in enumerate(ranked_demos):
+            pred_returns = [predict_traj_return(reward_net, traj) for traj in demonstrations]
+            if bin_num == 0:
+                print("No-op demos")
+
+            else:
+                print("Epsilon = ", epsilon_greedy_list[bin_num-1], "bin results:")
+                #print("Demonstrator demos:")
+            for i, p in enumerate(pred_returns):
+                print(i,p)
+
+
+    print("accuracy", calc_accuracy(reward_net, training_obs, training_labels))
+
+
+    #TODO:add checkpoints to training process
+    torch.save(reward_net.state_dict(), args.reward_model_path)

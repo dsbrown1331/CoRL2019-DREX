@@ -43,6 +43,7 @@ class DemoGenerator:
         env_type = "atari"
         #env id, env type, num envs, and seed
         env = make_vec_env(env_id, env_type, 1, seed, wrapper_kwargs={'clip_rewards':False,'episode_life':False,})
+        env.action_space.np_random.seed(seed)
         if env_type == 'atari':
             env = VecFrameStack(env, 4)
 

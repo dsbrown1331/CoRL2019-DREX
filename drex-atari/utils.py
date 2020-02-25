@@ -48,3 +48,4 @@ def perform_no_ops(ale, no_op_max, preprocessor, state):
 		ale.act(0)
 		preprocessor.add(ale.getScreenRGB())
 	state.add_frame(preprocessor.preprocess())
+
