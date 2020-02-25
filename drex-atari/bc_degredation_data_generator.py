@@ -355,7 +355,11 @@ if __name__=="__main__":
     action_set = set()
     action_cnt_dict = {}
     data = []
-    for i,episode in enumerate(demonstrations):
+    cnt = 0
+    while(demonstrations):
+        print("adding demonstration", cnt)
+        cnt += 1
+        episode = demonstrations[0]
         for sa in episode:
             state, action = sa
             action = action[0]
@@ -367,7 +371,7 @@ if __name__=="__main__":
             #transpose into 4x84x84 format
             state = np.transpose(np.squeeze(state), (2, 0, 1))
             data.append((state, action))
-        del demonstrations[i]
+        del demonstrations[0]
     del demonstrations
 
     #take 10% as validation data
@@ -391,7 +395,7 @@ if __name__=="__main__":
         if num_data == validation_dataset.size:
             print("data set full")
             break
-
+    del training_data, validation_data, data
     print("available actions", action_set)
     print(action_cnt_dict)
 
