@@ -1,3 +1,6 @@
+import sys
+sys.path.insert(0, './baselines')
+
 import argparse
 # coding: utf-8
 
