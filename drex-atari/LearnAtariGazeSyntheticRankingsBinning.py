@@ -226,7 +226,7 @@ def learn_reward(reward_network, optimizer, training_inputs, training_outputs, n
             #print stats to see if learning
             item_loss = loss.item()
             cum_loss += item_loss
-            if i % 10 == 9  :
+            if i % 1000 == 999  :
                 #print(i)
                 print("epoch {}:{} loss {}".format(epoch,i, cum_loss))
                 #evaluate validation_dataset error
@@ -338,7 +338,7 @@ if __name__=="__main__":
 
 
     parser.add_argument('--data_dir', help="where atari-head data is located")
-    parser.add_argument('--gaze_loss', default="", type=str, help="type of gaze loss function: sinkhorn, exact, coverage, KL, None")
+    parser.add_argument('--gaze_loss', default=None, type=str, help="type of gaze loss function: sinkhorn, exact, coverage, KL, None")
     parser.add_argument('--gaze_reg', default=0.01, type=float, help="gaze loss multiplier")
     parser.add_argument('--gaze_conv_layer', default=4, type=int, help='the convlayer of the reward network to which gaze should be compared')
     parser.add_argument('--use_motion', action="store_true")
@@ -406,12 +406,12 @@ if __name__=="__main__":
     env = VecFrameStack(env, 4)
 
     # gaze-related arguments
-    use_gaze = args.gaze_loss == "KL"
+    use_gaze = args.gaze_loss
     gaze_loss_type = args.gaze_loss
     gaze_reg = args.gaze_reg
     gaze_conv_layer = args.gaze_conv_layer
 
-    input("Using gaze set to {}. Continue?".format(use_gaze))
+    print("Usinging gaze set to {}!!".format(use_gaze))
 
     print("Downloading gaze data for BC with actions")
     data_dir = args.data_dir
