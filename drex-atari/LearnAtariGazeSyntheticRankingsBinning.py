@@ -344,7 +344,7 @@ if __name__=="__main__":
 
 
     parser.add_argument('--data_dir', help="where atari-head data is located")
-    parser.add_argument('--gaze_loss', default="KL", type=str, help="type of gaze loss function: sinkhorn, exact, coverage, KL, None")
+    parser.add_argument('--gaze_loss', default="", type=str, help="type of gaze loss function: sinkhorn, exact, coverage, KL, None")
     parser.add_argument('--gaze_reg', default=0.01, type=float, help="gaze loss multiplier")
     parser.add_argument('--gaze_conv_layer', default=4, type=int, help='the convlayer of the reward network to which gaze should be compared')
     parser.add_argument('--use_motion', action="store_true")
@@ -437,10 +437,10 @@ if __name__=="__main__":
     action_cnt_dict = {}
     data = []
     cnt = 0
-    while demonstrations:
+    for episode in demonstrations:
         print("adding demonstration", cnt)
         cnt += 1
-        episode = demonstrations[0]
+        
         for sa in episode:
             state, action = sa
             #Need to translate from gaze actions to ale gym
@@ -454,8 +454,8 @@ if __name__=="__main__":
             #transpose into 4x84x84 format
             state = np.transpose(np.squeeze(state), (2, 0, 1))
             data.append((state, action))
-        del demonstrations[0]
-    del demonstrations
+        #del demonstrations[0]
+    #del demonstrations
 
     #take 10% as validation data
     np.random.shuffle(data)
