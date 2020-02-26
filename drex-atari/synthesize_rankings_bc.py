@@ -18,7 +18,7 @@ from pdb import set_trace
 import dataset
 import tensorflow as tf
 from bc import Clone
-from baselines.common.trex_utils import preprocess
+from baselines.common.trex_utils import preprocess, mask_score
 
 
 
@@ -83,7 +83,7 @@ class DemoGenerator:
 
         rewards = []
         # 100 episodes
-        episode_count = 4
+        episode_count = 3
         reward = 0
         done = False
         rewards = []
@@ -97,7 +97,7 @@ class DemoGenerator:
             traj = []
             while True:
                 #preprocess the state
-                state = preprocess(ob, self.env_name)
+                state = mask_score(ob, self.env_name)
                 traj.append(state)
                 state = np.transpose(state, (0, 3, 1, 2))
                 ob, reward, done, _ = env.step(noop_action)
@@ -135,7 +135,7 @@ class DemoGenerator:
             traj = []
             while True:
                 #preprocess the state
-                state = preprocess(ob, self.env_name)
+                state = mask_score(ob, self.env_name)
 
                 traj.append(state)
                 state = np.transpose(state, (0, 3, 1, 2))
@@ -144,7 +144,7 @@ class DemoGenerator:
                     action = env.action_space.sample()
                 else:
                     #print('policy action')
-                    action = agent.get_action(state)
+                    action = agent.get_action(state / 255.) #normalize for bc policy but not for saving demos for space
                 ob, reward, done, _ = env.step(action)
                 steps += 1
                 acc_reward += reward

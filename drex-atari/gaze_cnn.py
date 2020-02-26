@@ -22,6 +22,7 @@ class Net(nn.Module):
         '''calculate cumulative return of trajectory'''
         sum_rewards = 0
         sum_abs_rewards = 0
+        #print(traj.size())
         x = traj.permute(0, 3, 1, 2)  # get into NCHW format
         # compute forward pass of reward network (we parallelize across frames so batch size is length of partial trajectory)
         x1 = F.leaky_relu(self.conv1(x))
@@ -50,7 +51,8 @@ class Net(nn.Module):
             gaze_conv = x4
             gaze_size = 7
         else:
-            print('invalid gaze_conv_layer. Must be between 1-4.')
+            pass
+            #print('invalid gaze_conv_layer. Must be between 1-4.')
             # exit(0)
 
         if self.gaze_loss_type is not None and gaze_conv_layer != 0:

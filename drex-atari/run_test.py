@@ -12,6 +12,8 @@ from baselines.common.cmd_util import make_vec_env
 from baselines.common.vec_env.vec_frame_stack import VecFrameStack
 from baselines.common.vec_env.vec_normalize import VecNormalize
 from baselines.common.vec_env.vec_video_recorder import VecVideoRecorder
+import matplotlib.pyplot as plt
+from baselines.common.trex_utils import preprocess, mask_score
 
 class RandomAgent(object):
     """The world's simplest agent!"""
@@ -113,14 +115,30 @@ class PPO2Agent2(object):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=None)
-    parser.add_argument('--env_id', default='', help='Select the environment to run')
-    parser.add_argument('--env_type', default='', help='mujoco or atari')
+    parser.add_argument('--env_name', default='', help='Select the environment to run')
+    parser.add_argument('--env_type', default='atari', help='mujoco or atari')
     parser.add_argument('--model_path', default='')
     parser.add_argument('--episode_count', default=100)
     parser.add_argument('--record_video', action='store_true')
     parser.add_argument('--render', action='store_true')
     parser.add_argument('--stochastic', default=False, help="Should agent sample actions, i.e. explore", action='store_true')
+    parser.add_argument('--random', action='store_true')
+    parser.add_argument('--debug_crop', action='store_true')
+    parser.add_argument('--no_op', action='store_true')
     args = parser.parse_args()
+
+    env_name = args.env_name
+    if env_name == "spaceinvaders":
+        env_id = "SpaceInvadersNoFrameskip-v4"
+    elif env_name == "mspacman":
+        env_id = "MsPacmanNoFrameskip-v4"
+    elif env_name == "videopinball":
+        env_id = "VideoPinballNoFrameskip-v4"
+    elif env_name == "beamrider":
+        env_id = "BeamRiderNoFrameskip-v4"
+    else:
+        env_id = env_name[0].upper() + env_name[1:] + "NoFrameskip-v4"
+
 
 
     # You can set the level to logger.DEBUG or logger.WARN if you
@@ -130,7 +148,7 @@ if __name__ == '__main__':
     #env = gym.make(args.env_id)
 
     #env id, env type, num envs, and seed
-    env = make_vec_env(args.env_id, args.env_type, 1, 0,
+    env = make_vec_env(env_id, args.env_type, 1, 0,
                        wrapper_kwargs={
                            'clip_rewards':False,
                            'episode_life':False,
@@ -150,8 +168,11 @@ if __name__ == '__main__':
     except AttributeError:
         pass
 
-    agent = PPO2Agent(env,args.env_type, args.stochastic)
-    agent.load(args.model_path)
+    if args.random:
+        agent = RandomAgent(env.unwrapped.envs[0].unwrapped.action_space)
+    else:
+        agent = PPO2Agent(env,args.env_type, args.stochastic)
+        agent.load(args.model_path)
     #agent = RandomAgent(env.action_space)
 
     episode_count = args.episode_count
@@ -163,8 +184,22 @@ if __name__ == '__main__':
         steps = 0
         acc_reward = 0
         while True:
-            action = agent.act(ob, reward, done)
+            if args.no_op:
+                action = 0
+            else:
+                action = agent.act(ob, reward, done)
             ob, reward, done, _ = env.step(action)
+            if args.debug_crop:
+                plt.figure()
+                print(ob.shape)
+                plt.imshow(ob[0])
+                plt.title("before crop")
+                plt.figure()
+                ob = mask_score(ob, env_name)
+                print(ob.shape)
+                plt.imshow(ob[0])
+                plt.title("after crop")
+                plt.show()
             if args.render:
                 env.render()
 

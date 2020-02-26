@@ -59,7 +59,7 @@ def train(env_name,
     best_v_loss = np.float('inf')
     count = 0
     while update < updates:
-        print(update)
+        #print(update)
         # snapshot = tracemalloc.take_snapshot()
         # top_stats = snapshot.statistics('lineno')
         # import gc
