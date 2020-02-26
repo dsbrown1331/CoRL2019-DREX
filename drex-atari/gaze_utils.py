@@ -68,6 +68,25 @@ def MaxSkipAndWarpFrames(trajectory_dir, img_dirs, frames):
             max_frames.append(warped)
     return max_frames
 
+def GrabSingleFrames(trajectory_dir, img_dirs, frames):
+    """take a trajectory file of frames and max over every 3rd and 4th observation"""
+    num_frames = len(frames)
+    
+    sample_pic = np.random.choice(
+        listdir(path.join(trajectory_dir, img_dirs[0])))
+    image_path = path.join(trajectory_dir, img_dirs[0], sample_pic)
+    frames = []
+    for i in range(num_frames):
+        # TODO: check that i should max before warping.
+        img_name = frames[i] + ".png"
+        img_dir = img_dirs[i]
+
+        obs = cv2.imread(path.join(trajectory_dir, img_dir, img_name))
+
+        warped = GrayScaleWarpImage(obs)
+        frames.append(warped)
+    return frames
+
 
 def StackFrames(frames):
     import copy
@@ -242,6 +261,100 @@ def get_sorted_traj_indices(env_name, dataset):
     return demos
 
 
+def get_preprocessed_trajectories_onestate(env_name, dataset, data_dir, use_gaze, gaze_conv_layer):
+    """returns an array of trajectories corresponding to what you would get running checkpoints from PPO
+       demonstrations are grayscaled, maxpooled, stacks of 4 with normalized values between 0 and 1 and
+       top section of screen is masked
+
+       This version will return two datasets, one with gaze for TREX and one without gaze for BC on single states and actions
+    """
+
+    demos = get_sorted_traj_indices(env_name, dataset)
+    human_scores = []
+    human_demos = []
+    human_rewards = []
+    human_gaze = []
+    bc_data = []
+
+    print('len demos: ', len(demos))
+    for indx, score, img_dir, rew, gaze, frame, action in demos:
+        print(score)
+        print('before frames', len(frame), 'before actions', len(action))
+        
+        human_scores.append(score)
+
+        # traj_dir = path.join(data_dir, 'screens', env_name, str(indx))
+        traj_dir = path.join(data_dir, env_name)
+        maxed_traj = MaxSkipAndWarpFrames(traj_dir, img_dir, frame)
+        stacked_traj = StackFrames(maxed_traj)
+        print('after frames', len(stacked_traj))
+   
+
+        demo_norm_mask = []
+        # normalize values to be between 0 and 1 and have top part masked
+        for ob in stacked_traj:
+            demo_norm_mask.append(mask_score(ob, env_name)[0])  # masking
+        
+        demo_onestate_mask = GrabSingleFrames(traj_dir, img_dir, frame)
+        for i,ob in demo_onestate_mask:
+            demo_onestate_mask[i] = mask_score(ob, env_name)[0]
+
+        #postprocess actions to keep the action that is after the framestacks
+        #print("pre", action[:416])
+        #all_actions = action[15::4]  #assume that we need to create a buffer of four stacked frames and that we make decision after that
+        #for now let's just repeat the last action if we need one more (ie if there isn't an action for the last observation)
+        #while len(stacked_actions) < len(demo_norm_mask):
+        #    print("buffering action list with repeated last action!!")
+        #    stacked_actions.append(action[-1])
+        #print("post", stacked_actions[:100])
+
+        print("len human demos", len(demo_norm_mask))
+        assert(len(demo_onestate_mask) == len(action))
+        sa_list = list(zip(demo_onestate_mask, action))
+        
+      
+
+
+
+        
+        human_demos.append(demo_norm_mask)
+        bc_data.append(sa_list)
+
+        
+
+        # skip and stack reward
+        maxed_reward = MaxSkipReward(rew)
+        stacked_reward = StackReward(maxed_reward)
+        human_rewards.append(stacked_reward)
+
+        if use_gaze:
+            # generate gaze heatmaps as per Ruohan's algorithm
+            h = gh.DatasetWithHeatmap()
+            if gaze_conv_layer == 1:
+                conv_size = 26
+            elif gaze_conv_layer == 2:
+                conv_size = 11
+            elif gaze_conv_layer == 3:
+                conv_size = 9
+            elif gaze_conv_layer == 4:
+                conv_size = 7
+            else:
+                print('Invalid Gaze conv layer. Must be between 1-4.')
+                exit(1)
+            g = h.createGazeHeatmap(gaze, conv_size)
+
+            maxed_gaze = MaxSkipGaze(g, conv_size)
+            stacked_gaze = CollapseGaze(maxed_gaze, conv_size)
+            human_gaze.append(stacked_gaze)
+            print('stacked gaze: ', stacked_gaze[0].shape)
+
+    # if(use_gaze):
+    #     print(len(human_demos[0]), len(human_rewards[0]), len(human_gaze[0]))
+    #     print(len(human_demos), len(human_rewards), len(human_gaze))
+
+    return human_demos, human_scores, human_rewards, human_gaze, bc_data
+
+
 def get_preprocessed_trajectories(env_name, dataset, data_dir, use_gaze, gaze_conv_layer):
     """returns an array of trajectories corresponding to what you would get running checkpoints from PPO
        demonstrations are grayscaled, maxpooled, stacks of 4 with normalized values between 0 and 1 and
@@ -369,5 +482,8 @@ def debug_action_translation():
 	env = gym.make('SpaceInvadersNoFrameskip-v4')
 	action_meanings = env.unwrapped.get_action_meanings()
 	print(action_meanings)
-	for a in [0, 1, 3, 4, 11, 12]:
+	for a in [0, 1, 2, 3, 4, 11, 12]:
 		print(a, translate_action(a, action_meanings))
+
+if __name__=="__main__":
+    debug_action_translation()

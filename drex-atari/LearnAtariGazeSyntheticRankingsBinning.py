@@ -396,6 +396,11 @@ if __name__=="__main__":
     
     action_meanings = env.unwrapped.envs[0].unwrapped.get_action_meanings()
 
+    print("="*10)
+    print(action_meanings)
+    print("="*10)
+
+
     env = VecFrameStack(env, 4)
 
     # gaze-related arguments
