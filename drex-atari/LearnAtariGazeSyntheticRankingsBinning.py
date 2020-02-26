@@ -398,6 +398,7 @@ if __name__=="__main__":
 
     print("="*10)
     print(action_meanings)
+    num_actions = len(action_meanings)
     print("="*10)
 
 
@@ -481,7 +482,7 @@ if __name__=="__main__":
 
 
     agent = train(args.env_name,
-        action_set,
+        action_meanings,
         args.learning_rate,
         args.alpha,
         args.l2_penalty,
