@@ -355,8 +355,10 @@ ACTION_MEANING = {
 
 def translate_action(a, action_meanings):
 	#take action from akanksha's stuff and map it to the 0:num_actions that i'm using for ale
-
-	return action_meanings.index(ACTION_MEANING[a])
+    if ACTION_MEANING[a] in action_meanings:
+	    return action_meanings.index(ACTION_MEANING[a])
+    else: #just no-op since action is meaningless
+        return 0
 
 
 
