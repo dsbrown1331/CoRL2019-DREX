@@ -39,6 +39,9 @@ def mask_score(obs, env_name):
     elif env_name == "mspacman":
         n_bottom = 15 #mask score and number lives left
         obs_copy[:,-n_bottom:,:,:] = 0
+    elif env_name == "centipede":
+        n_bottom = 13 #mask score and number lives left
+        obs_copy[:,-n_bottom:,:,:] = 0
     elif env_name == "videopinball":
         n_top = 15
         obs_copy[:,:n_top,:,:] = 0
