@@ -384,7 +384,7 @@ def get_preprocessed_trajectories(env_name, dataset, data_dir, use_gaze, gaze_co
         demo_norm_mask = []
         # normalize values to be between 0 and 1 and have top part masked
         for ob in stacked_traj:
-            ob.astype(np.uint8)
+            #ob.astype(np.uint8)
             demo_norm_mask.append(mask_score(ob, env_name)[0])  # masking
         
         #postprocess actions to keep the action that is after the framestacks
