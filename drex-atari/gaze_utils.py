@@ -275,7 +275,7 @@ def get_preprocessed_trajectories(env_name, dataset, data_dir, use_gaze, gaze_co
         
         #postprocess actions to keep the action that is after the framestacks
         #print("pre", action[:416])
-        stacked_actions = action[16::4]  #assume that we need to create a buffer of four stacked frames and that we make decision after that
+        stacked_actions = action[15::4]  #assume that we need to create a buffer of four stacked frames and that we make decision after that
         #for now let's just repeat the last action if we need one more (ie if there isn't an action for the last observation)
         while len(stacked_actions) < len(demo_norm_mask):
             print("buffering action list with repeated last action!!")
