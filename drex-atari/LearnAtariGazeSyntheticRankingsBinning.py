@@ -509,13 +509,13 @@ if __name__=="__main__":
     ranked_demos = generator.get_pseudo_rankings(epsilon_greedy_list, add_noop=True)
 
     # ## Add the demonstrators demos as the highest ranked batch of trajectories, don't need actions
-    # demo_demos = []
-    # for d in demonstrations:
-    #     traj = []
-    #     for s,a in d:
-    #         traj.append(s)
-    #     demo_demos.append(traj)
-    # ranked_demos.append(demo_demos)
+    demo_demos = []
+    for d in demonstrations:
+        traj = []
+        for s,a in d:
+            traj.append(s)
+        demo_demos.append(traj)
+    ranked_demos.append(demo_demos)
 
     #remove the extra first dimension on the observations
     _ranked_demos = ranked_demos
