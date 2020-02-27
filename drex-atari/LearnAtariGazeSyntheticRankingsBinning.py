@@ -33,7 +33,7 @@ import dataset
 from gaze_cnn import Net
 import atari_head_dataset as ahd 
 import gaze_utils
-from tensorboardX import SummaryWriter
+#from tensorboardX import SummaryWriter
 
 def create_gaze_training_data(demonstrations, num_snippets, min_snippet_length, max_snippet_length, gaze_coords, use_gaze):
     #collect training data
@@ -198,8 +198,10 @@ def learn_reward(reward_network, optimizer, training_inputs, training_outputs, n
             if gaze_loss_type == 'KL':
                 #get gaze conv maps
                 obs_i, obs_j = gaze_training_obs[i]
-                obs_i = np.array(obs_i) / 255.
-                obs_j = np.array(obs_j) / 255.
+                #print(np.array(obs_i).astype(int).dtype)
+                #print(np.array(obs_j).dtype)
+                obs_i = np.array(obs_i).astype(int) / 255.
+                obs_j = np.array(obs_j).astype(int) / 255.
                 obs_i = torch.from_numpy(obs_i).float().to(device)
                 obs_j = torch.from_numpy(obs_j).float().to(device)
                 _, _, conv_map_i, conv_map_j = reward_network.forward(obs_i, obs_j, gaze_conv_layer)
@@ -215,7 +217,7 @@ def learn_reward(reward_network, optimizer, training_inputs, training_outputs, n
                     gaze_loss_j = get_gaze_KL_loss(gaze_j, torch.squeeze(conv_map_j))
 
                     gaze_loss_total = (gaze_loss_i + gaze_loss_j)
-                    writer.add_scalar('KL_loss', gaze_loss_total.item(), epoch*len(training_labels)+i) 
+                    #writer.add_scalar('KL_loss', gaze_loss_total.item(), epoch*len(training_labels)+i) 
 
                 loss += gaze_reg * gaze_loss_total
             
@@ -516,7 +518,10 @@ if __name__=="__main__":
         demo_demos.append(traj)
     ranked_demos.append(demo_demos)
 
-
+    for d in demonstrations:
+        for i in range(len(d)):
+            s,a = d[i]
+            d[i] = s
 
     # input("let's check the demos")
     # print(len(ranked_demos))
@@ -543,11 +548,25 @@ if __name__=="__main__":
 
     print("Learning from ", len(ranked_demos), "synthetically ranked batches of demos")
 
+    print("only using actual demos for gaze loss")
+    #_demo_demos = demo_demos
+    #demo_demos = []
+    #for _r in _demo_demos:
+    #    r = []
+    #    for _d in _r:
+    #        d = []
+    #        for _ob in _d:
+    #            ob = _ob[0]
+    #            d.append(ob)
+    #        r.append(d)
+    #    demo_demos.append(r)
     if use_gaze:
         gaze_obs, gaze_coords = create_gaze_training_data(demonstrations, num_snippets, min_snippet_length, max_snippet_length, learning_gaze, use_gaze)
     else:
         gaze_obs = []
         gaze_coords = []
+
+
 
     training_obs, training_labels = create_training_data_from_bins(ranked_demos, num_snippets, min_snippet_length, max_snippet_length)
     print("num training_obs", len(training_obs))

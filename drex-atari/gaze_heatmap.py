@@ -199,7 +199,7 @@ class DatasetWithHeatmap:
         from scipy.stats import multivariate_normal
         import tensorflow as tf
         # don't move this to the top, as people who import this file might not have keras or tf
-        import keras as K
+        K=tf.keras
 
         model = K.models.Sequential()
         model.add(K.layers.Lambda(lambda x: x+bg_prob_density,

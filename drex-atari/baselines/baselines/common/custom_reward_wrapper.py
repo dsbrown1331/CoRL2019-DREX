@@ -15,8 +15,8 @@ class AtariNet(nn.Module):
     def __init__(self):
         super().__init__()
 
-        self.conv1 = nn.Conv2d(4, 32, 7, stride=3)
-        self.conv2 = nn.Conv2d(32, 16, 5, stride=2)
+        self.conv1 = nn.Conv2d(4, 16, 7, stride=3)
+        self.conv2 = nn.Conv2d(16, 16, 5, stride=2)
         self.conv3 = nn.Conv2d(16, 16, 3, stride=1)
         self.conv4 = nn.Conv2d(16, 16, 3, stride=1)
         self.fc1 = nn.Linear(784, 64)
