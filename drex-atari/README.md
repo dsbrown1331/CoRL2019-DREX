@@ -6,9 +6,10 @@ This repository contains Python and PyTorch code for running the D-REX experimen
 
 You will need to install baselines using following commands:
 
+```
 cd baselines
 pip install -e .
-
+```
 Next download PPO checkpoints into the ```./models``` directory
 https://github.com/dsbrown1331/learning-rewards-of-learners/releases/tag/atari25
 
