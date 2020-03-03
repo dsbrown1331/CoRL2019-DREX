@@ -15,6 +15,7 @@ import time
 import numpy as np
 import random
 import torch
+torch.set_num_threads(1)
 import torch.nn as nn
 import torch.nn.functional as F
 from baselines.common.cmd_util import make_vec_env
