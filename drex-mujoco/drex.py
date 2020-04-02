@@ -211,7 +211,7 @@ def train_rl(args):
             nenv=1, #ncpu//ngpu,
             num_timesteps=args.num_timesteps,
             save_interval=args.save_interval,
-            custom_reward='preference_normalized_v2',
+            custom_reward='preference_normalized',
             gamma=args.gamma,
             seed=i,
             kwargs=str(kwargs)
