@@ -154,7 +154,6 @@ class VecTFPreferenceRewardNormalized(VecTFPreferenceReward):
                     # Sum-up each models' reward
                     r_hats += r_hat
 
-        #TODO: BUG ALERT!!!!
         rews = r_hats / len(self.models) - self.ctrl_coeff*np.sum(acs**2,axis=1)
         rews += self.alive_bonus
 
@@ -187,6 +186,7 @@ class VecTFPreferenceRewardNormalizedV2(VecTFPreferenceReward):
                     # Sum-up each models' reward
                     r_hats += r_hat
 
+        #BUG ALERT!!!! Don't use this version, use VecTFPreferenceRewardNormalized instead 
         rews = r_hat / len(self.models) - self.ctrl_coeff*np.sum(acs**2,axis=1)
         rews += self.alive_bonus
 
