@@ -69,7 +69,7 @@ class Evaluator:
             acc_reward = 0
             while True:
                 #preprocess the state
-                state = preprocess(ob, env_name)
+                state = preprocess(ob, self.env_name)
                 state = np.transpose(state, (0, 3, 1, 2))
                 if np.random.rand() < self.epsilon_greedy:
                     #print('eps greedy action')
