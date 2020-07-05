@@ -217,7 +217,7 @@ def train_rl(args):
             nenv=1, #ncpu//ngpu,
             num_timesteps=args.num_timesteps,
             save_interval=args.save_interval,
-            custom_reward='preference_normalized',
+            custom_reward='preference_normalized_v2',
             gamma=args.gamma,
             seed=i,
             kwargs=str(kwargs)
@@ -258,7 +258,7 @@ def eval_rl(args):
             V.append(np.sum(R))
         return V
 
-    with open(os.path.join(args.log_dir,'rl_results.txt'),'w') as f:
+    with open(os.path.join(args.log_dir,'rl_results_clip_action.txt'),'w') as f:
         # Load T-REX learned agent
         agents_dir = Path(os.path.abspath(os.path.join(args.log_dir,'rl')))
 
@@ -273,12 +273,14 @@ def eval_rl(args):
 
                 agent = PPO2Agent(env,'mujoco',str(path),stochastic=True)
                 agent_perfs = _get_perf(agent)
-                print('[%s-%d] %f %f'%(step,i,np.mean(agent_perfs[-5:]),np.std(agent_perfs[-5:])))
-                print('[%s-%d] %f %f'%(step,i,np.mean(agent_perfs[-5:]),np.std(agent_perfs[-5:])),file=f)
+                print('[%s-%d] %f %f'%(step,i,np.mean(agent_perfs),np.std(agent_perfs)))
+                print('[%s-%d] %f %f'%(step,i,np.mean(agent_perfs),np.std(agent_perfs)),file=f)
 
                 perfs += agent_perfs
             print('[%s] %f %f %f %f'%(step,np.mean(perfs),np.std(perfs),np.max(perfs),np.min(perfs)))
             print('[%s] %f %f %f %f'%(step,np.mean(perfs),np.std(perfs),np.max(perfs),np.min(perfs)),file=f)
+
+            f.flush()
 
 if __name__ == "__main__":
     # Required Args (target envs & learners)
