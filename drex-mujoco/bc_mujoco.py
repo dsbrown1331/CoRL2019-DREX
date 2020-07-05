@@ -4,7 +4,9 @@ import pickle
 from pathlib import Path
 import numpy as np
 import tensorflow as tf
-from tqdm import tqdm
+from tqdm import tqdm as std_tqdm
+from functools import partial
+tqdm = partial(std_tqdm, dynamic_ncols=True, disable=eval(os.environ.get("DISABLE_TQDM", 'False')))
 
 import gym
 from tf_commons.ops import Linear
@@ -113,7 +115,7 @@ class Policy(object):
                         self.inp:b_s,
                         self.l:b_a,
                     })
-                    tqdm.write(('loss: %f (l2_loss: %f), valid_loss: %f'%(loss,l2_loss,valid_loss)))
+                    std_tqdm.write(('loss: %f (l2_loss: %f), valid_loss: %f'%(loss,l2_loss,valid_loss)))
 
     def act(self, observation, reward, done, clip=False):
         sess = self.sess
@@ -149,6 +151,9 @@ class Dataset(object):
         return obs,actions,rewards
 
 def bc(args):
+    np.random.seed(args.seed)
+    tf.random.set_random_seed(args.seed)
+
     logdir = Path(args.log_path)
     logdir.mkdir(parents=True,exist_ok='temp' in args.log_path)
 
@@ -156,6 +161,8 @@ def bc(args):
         f.write( str(args) )
 
     env = gym.make(args.env_id)
+    env.seed(args.seed)
+
     policy = Policy(env,args.num_layers,args.embed_size)
     dataset = Dataset(args.demo_trajs)
 
@@ -171,6 +178,7 @@ if __name__ == "__main__":
     # Required Args (target envs & learners)
     parser = argparse.ArgumentParser(description=None)
     # Train Setting
+    parser.add_argument('--seed', default=0, type=int, help='seed for the experiments')
     parser.add_argument('--log_path', required=True, help='log dir')
     parser.add_argument('--env_id', required=True, help='Select the environment to run')
     # Dataset

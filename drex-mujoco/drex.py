@@ -7,7 +7,8 @@ from functools import partial
 from pathlib import Path
 import numpy as np
 import tensorflow as tf
-from tqdm import tqdm
+from tqdm import tqdm as std_tqdm
+tqdm = partial(std_tqdm, dynamic_ncols=True, disable=eval(os.environ.get("DISABLE_TQDM", 'False')))
 
 import gym
 
@@ -26,6 +27,7 @@ def train_reward(args):
         f.write( str(args) )
 
     env = gym.make(args.env_id)
+    env.seed(args.seed)
 
     ob_dims = env.observation_space.shape[-1]
     ac_dims = env.action_space.shape[-1]
@@ -62,7 +64,11 @@ def train_reward(args):
     sess.close()
 
 def eval_reward(args):
+    np.random.seed(args.seed)
+    tf.random.set_random_seed(args.seed)
+
     env = gym.make(args.env_id)
+    env.seed(args.seed)
 
     dataset = BCNoisePreferenceDataset(env)
 
@@ -237,9 +243,14 @@ def train_rl(args):
         p.wait()
 
 def eval_rl(args):
+    np.random.seed(args.seed)
+    tf.random.set_random_seed(args.seed)
+
     from utils import PPO2Agent, gen_traj
 
     env = gym.make(args.env_id)
+    env.seed(args.seed)
+
     def _get_perf(agent, num_eval=20):
         V = []
         for _ in range(num_eval):
