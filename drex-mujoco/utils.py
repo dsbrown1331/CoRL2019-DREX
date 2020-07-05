@@ -83,7 +83,7 @@ class PPO2Agent(object):
                     a,v,state,neglogp = self.model.step(obs[None])
                 else:
                     a = self.model.act_model.act(obs[None])
-        return a[0]
+        return np.clip(a[0],-1.,1.)
 
 def gen_traj(env,agent,min_length):
     obs, actions, rewards = [env.reset()], [], []

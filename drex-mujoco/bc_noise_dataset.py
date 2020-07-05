@@ -1,8 +1,12 @@
 import argparse
 import os
 import numpy as np
+import tensorflow as tf
 import pickle
-from tqdm import tqdm
+from tqdm import tqdm as std_tqdm
+from functools import partial
+tqdm = partial(std_tqdm, dynamic_ncols=True, disable=eval(os.environ.get("DISABLE_TQDM", 'False')))
+
 import gym
 
 import matplotlib
@@ -73,13 +77,16 @@ class NoiseInjectedPolicy(object):
             self.action_noise = OrnsteinUhlenbeckActionNoise(mu=mu,sigma=std)
         elif action_noise_type == 'epsilon':
             self.epsilon = noise_level
+            self.scale = self.action_space.high[0]
+            assert np.all(self.scale == self.action_space.high) and \
+                np.all(self.scale == -1.*self.action_space.low)
         else:
             assert False, "no such action noise type: %s"%(action_noise_type)
 
     def act(self, obs, reward, done):
         if self.action_noise_type == 'epsilon':
             if np.random.random() < self.epsilon:
-                return self.action_space.sample()
+                return np.random.uniform(-self.scale,self.scale,self.action_space.shape)
             else:
                 act = self.policy.act(obs,reward,done)
         else:
@@ -205,6 +212,7 @@ class BCNoisePreferenceDataset(object):
 if __name__ == "__main__":
     # Required Args (target envs & learners)
     parser = argparse.ArgumentParser(description=None)
+    parser.add_argument('--seed', default=0, type=int, help='seed for the experiments')
     parser.add_argument('--log_dir', required=True, help='log dir')
     parser.add_argument('--env_id', required=True, help='Select the environment to run')
     parser.add_argument('--bc_agent',required=True)
@@ -216,8 +224,13 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
+    np.random.seed(args.seed)
+    tf.random.set_random_seed(args.seed)
+
     # Generate a Noise Injected Trajectories
     env = gym.make(args.env_id)
+    env.seed(args.seed)
+
     dataset = BCNoisePreferenceDataset(env)
     agent = Policy(env)
     agent.load(args.bc_agent)
