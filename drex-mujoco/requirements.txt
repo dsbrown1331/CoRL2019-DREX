@@ -116,7 +116,7 @@ pycosat==0.6.3
 pycparser==2.19
 pygame==2.0.0.dev3
 pyglet==1.3.2
-Pygments==2.3.1
+Pygments==2.7.4
 pylint==2.2.2
 -e git+git@github.com:hiwonjoon/pymaze.git@4aa194686ecc43bd6e43145ef1a91047a420a12a#egg=pymaze&subdirectory=../../../submodules/pymaze
 pynvim==0.3.2
