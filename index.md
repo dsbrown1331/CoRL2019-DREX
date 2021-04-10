@@ -111,7 +111,7 @@ If you're interested in finding out more about D-REX and the theory behind it, c
 
 ## Bayesian Reward Extrapolation
 
-T-REX and D-REX only learn a maximum likelihood estimate of the demonstrator's reward function. In many settings, it is beneficial to allow an imitation learner to reason about uncertainty. [Bayesian REX](https://sites.google.com/view/bayesianrex/) is an extension of T-REX that uses self-supervised pretraining to enable super fast Bayesian reward function inference from preferences. Rather than only obtaining a single point estimate of the reward function Bayesian REX obtains an entire posterior distribution of likely reward functions given preferences over demonstrations and it easily scales to vision-based control tasks like Atari. Bayesian REX that the learned posterior can be used to accurately rank different evaluation policies and to detect reward hacking behaviors. 
+T-REX and D-REX only learn a maximum likelihood estimate of the demonstrator's reward function. In many settings, it is beneficial to allow an imitation learner to reason about uncertainty. [Bayesian REX](https://sites.google.com/view/bayesianrex/) is an extension of T-REX that uses self-supervised pretraining to enable super fast Bayesian reward function inference from preferences. Rather than only obtaining a single point estimate of the reward function Bayesian REX obtains an entire posterior distribution of likely reward functions given preferences over demonstrations and it easily scales to vision-based control tasks like Atari. The posterior distribution over reward functions learned by Bayesian REX can be used to accurately rank different evaluation policies and to detect reward hacking behaviors. 
 
 ___
 ---
