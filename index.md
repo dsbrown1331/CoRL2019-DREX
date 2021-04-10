@@ -109,6 +109,10 @@ We're very excited about D-REX and we think there are still lots of open empiric
 
 If you're interested in finding out more about D-REX and the theory behind it, checkout our [CoRL 2019 paper](https://arxiv.org/abs/1907.03976) and our [Code](https://github.com/dsbrown1331/CoRL2019-DREX). In the paper we take a more theoretical approach to motivate D-REX. We first derive theoretical conditions for when better-than-demonstrator performance is possible. Then we  present theoretical results that give insight into why preferences or rankings over demonstrations lead to more accurate reward functions when performing IRL. D-REX is a simple but powerful way to auto-generate large numbers of high-probability rankings for free, enabling better-than-demonstrator performance.
 
+## Bayesian Reward Extrapolation
+
+T-REX and D-REX only learn a maximum likelihood estimate of the demonstrator's reward function. In many settings, it is beneficial to allow an imitation learner to reason about uncertainty. [Bayesian REX](https://sites.google.com/view/bayesianrex/) is an extension of T-REX that uses self-supervised pretraining to enable super fast Bayesian reward function inference from preferences. Rather than only obtaining a single point estimate of the reward function Bayesian REX obtains an entire posterior distribution of likely reward functions given preferences over demonstrations and it easily scales to vision-based control tasks like Atari. Bayesian REX that the learned posterior can be used to accurately rank different evaluation policies and to detect reward hacking behaviors. 
+
 ___
 ---
 
