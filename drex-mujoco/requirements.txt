@@ -149,7 +149,7 @@ sklearn==0.0
 sympy==1.4
 tensorboard==1.14.0
 tensorflow-estimator==1.14.0
-tensorflow-gpu==1.14.0
+tensorflow-gpu==2.5.1
 tensorflow-probability==0.7.0
 termcolor==1.1.0
 terminado==0.8.2
